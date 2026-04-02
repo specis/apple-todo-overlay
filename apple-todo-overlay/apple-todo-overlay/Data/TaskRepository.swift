@@ -111,4 +111,8 @@ final class TaskRepository {
             DELETE FROM task_tags WHERE task_id = ? AND tag_id = ?;
         """, params: [taskId, tagId])
     }
+
+    func removeAllTags(forTaskId taskId: String) throws {
+        try db.run("DELETE FROM task_tags WHERE task_id = ?;", params: [taskId])
+    }
 }

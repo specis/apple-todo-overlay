@@ -3,7 +3,11 @@ import SwiftUI
 struct TaskRowView: View {
 
     let task: TodoTask
+    let isExpanded: Bool
     let onToggle: () -> Void
+    let onTap: () -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -14,7 +18,10 @@ struct TaskRowView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+        .background(rowBackground)
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .onTapGesture { onTap() }
     }
 
     // MARK: - Subviews
@@ -28,20 +35,39 @@ struct TaskRowView: View {
         }
         .buttonStyle(.plain)
         .padding(.top, 1)
+        // Prevent tap from propagating to the row's onTapGesture
+        .onTapGesture { onToggle() }
     }
 
     private var taskDetails: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(task.title)
-                .font(.system(size: 13))
-                .foregroundStyle(task.completed ? .tertiary : .primary)
-                .strikethrough(task.completed)
-                .animation(.easeInOut(duration: 0.15), value: task.completed)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(task.title)
+                    .font(.system(size: 13))
+                    .foregroundStyle(task.completed ? .tertiary : .primary)
+                    .strikethrough(task.completed)
+                    .animation(.easeInOut(duration: 0.15), value: task.completed)
+
+                if isExpanded {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+            }
 
             if let label = dueDateLabel {
                 Text(label)
                     .font(.system(size: 11))
                     .foregroundStyle(dueDateColor)
+            }
+
+            if !task.tags.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(task.tags) { tag in
+                        TagChipView(tag: tag)
+                    }
+                }
+                .padding(.top, 1)
             }
         }
     }
@@ -55,6 +81,15 @@ struct TaskRowView: View {
                     .padding(.top, 5)
             }
         }
+    }
+
+    private var rowBackground: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(isExpanded
+                  ? Color.primary.opacity(0.05)
+                  : isHovered
+                    ? Color.primary.opacity(0.04)
+                    : Color.clear)
     }
 
     // MARK: - Helpers

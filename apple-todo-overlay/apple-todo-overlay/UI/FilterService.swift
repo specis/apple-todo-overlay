@@ -2,6 +2,12 @@ import Foundation
 
 enum FilterService {
 
+    static func applyTagFilter(_ tagId: String?, to tasks: [TodoTask]) -> [TodoTask] {
+        guard let tagId else { return tasks }
+        return tasks.filter { $0.tags.contains { $0.id == tagId } }
+    }
+
+
     static func apply(_ filter: SmartList, to tasks: [TodoTask]) -> [TodoTask] {
         let cal = Calendar.current
         let now = Date()

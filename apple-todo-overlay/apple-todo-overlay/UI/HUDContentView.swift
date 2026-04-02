@@ -9,6 +9,9 @@ struct HUDContentView: View {
         VStack(spacing: 0) {
             header
             filterBar
+            if !viewModel.availableTags.isEmpty {
+                tagFilterBar
+            }
             Divider()
             taskList
             if showingQuickAdd {
@@ -24,6 +27,10 @@ struct HUDContentView: View {
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onKeyPress(.escape) {
+            if viewModel.editingTaskId != nil {
+                viewModel.editingTaskId = nil
+                return .handled
+            }
             if showingQuickAdd {
                 withAnimation(.spring(duration: 0.2)) { showingQuickAdd = false }
                 return .handled
@@ -47,9 +54,7 @@ struct HUDContentView: View {
                 .contentTransition(.numericText())
                 .animation(.default, value: viewModel.filteredTasks.count)
             Button {
-                withAnimation(.spring(duration: 0.2)) {
-                    showingQuickAdd.toggle()
-                }
+                withAnimation(.spring(duration: 0.2)) { showingQuickAdd.toggle() }
             } label: {
                 Image(systemName: showingQuickAdd ? "xmark.circle.fill" : "plus.circle.fill")
                     .foregroundStyle(showingQuickAdd ? Color.secondary : Color.accentColor)
@@ -67,7 +72,7 @@ struct HUDContentView: View {
         return n == 1 ? "1 task" : "\(n) tasks"
     }
 
-    // MARK: - Filter bar
+    // MARK: - Smart list filter bar
 
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -86,19 +91,39 @@ struct HUDContentView: View {
         return Button {
             withAnimation(.spring(duration: 0.2)) {
                 viewModel.activeFilter = list
+                viewModel.activeTagFilter = nil
             }
         } label: {
             Text(list.rawValue)
                 .font(.system(size: 12, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Color.white : .secondary)
+                .foregroundStyle(selected ? Color.white : Color.secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(selected ? Color.accentColor : Color.primary.opacity(0.08))
-                )
+                .background(Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(0.08)))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Tag filter bar
+
+    private var tagFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 5) {
+                ForEach(viewModel.availableTags) { tag in
+                    let selected = viewModel.activeTagFilter?.id == tag.id
+                    Button {
+                        withAnimation(.spring(duration: 0.2)) {
+                            viewModel.activeTagFilter = selected ? nil : tag
+                        }
+                    } label: {
+                        TagChipView(tag: tag, selected: selected)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 8)
+        }
     }
 
     // MARK: - Task list
@@ -110,13 +135,51 @@ struct HUDContentView: View {
                     emptyState
                 } else {
                     ForEach(viewModel.filteredTasks) { task in
-                        TaskRowView(task: task) {
-                            withAnimation(.spring(duration: 0.25)) {
-                                viewModel.toggleComplete(task)
+                        let isEditing = viewModel.editingTaskId == task.id
+                        VStack(spacing: 0) {
+                            TaskRowView(
+                                task: task,
+                                isExpanded: isEditing,
+                                onToggle: {
+                                    withAnimation(.spring(duration: 0.25)) {
+                                        viewModel.toggleComplete(task)
+                                    }
+                                },
+                                onTap: {
+                                    withAnimation(.spring(duration: 0.2)) {
+                                        viewModel.editingTaskId = isEditing ? nil : task.id
+                                    }
+                                }
+                            )
+
+                            if isEditing {
+                                TaskEditView(
+                                    task: task,
+                                    allTags: viewModel.availableTags,
+                                    onSave: { updated in
+                                        withAnimation(.spring(duration: 0.2)) {
+                                            viewModel.updateTask(updated)
+                                        }
+                                    },
+                                    onDelete: {
+                                        withAnimation(.spring(duration: 0.2)) {
+                                            viewModel.deleteTask(task)
+                                        }
+                                    },
+                                    onDismiss: {
+                                        withAnimation(.spring(duration: 0.2)) {
+                                            viewModel.editingTaskId = nil
+                                        }
+                                    }
+                                )
+                                .transition(.asymmetric(
+                                    insertion: .move(edge: .top).combined(with: .opacity),
+                                    removal: .opacity
+                                ))
                             }
                         }
-                        Divider()
-                            .padding(.leading, 42)
+
+                        Divider().padding(.leading, 42)
                     }
                 }
             }

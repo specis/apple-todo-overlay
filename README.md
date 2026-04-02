@@ -6,12 +6,14 @@ A macOS floating HUD for managing tasks. Lives in the menu bar, floats above all
 
 - Floating overlay panel — always on top, visible on all Spaces
 - Smart list views: Today, Tomorrow, This Week, Next Week, Overdue, No Due Date, Recently Completed
-- Quick-add tasks with natural language input (`tomorrow`, `next friday`, `!` for high priority, `#tag`)
-- Tags and priority levels (High, Medium, Low) per task
+- Quick-add tasks with natural language input (`tomorrow`, `next friday`, `!` high priority, `#tag`)
+- Tags with auto-assigned colours — filter the task list by tag
+- Priority levels (High, Medium, Low) with colour-coded indicators
+- Inline task editing — click any row to edit title, due date, priority, and tags
 - Local-first SQLite database — works fully offline
 - Sync with Apple Reminders on launch (CloudKit and Microsoft To Do coming)
 
-> **Status:** Active development. Core task UI, local database, quick-add, and Apple Reminders sync are working. Tags UI, inline editing, and remaining sync providers are in progress.
+> **Status:** Active development. Core task UI, local database, quick-add, tags, inline editing, and Apple Reminders sync are all working.
 
 ## Requirements
 
@@ -31,7 +33,7 @@ The app runs as a menu bar agent (no Dock icon). On first launch it appears in t
 
 ## Quick-add
 
-Press the `+` button in the HUD header (or tap into the input field at the bottom). Type naturally:
+Press the `+` button in the HUD header. Type naturally and press **Return** to save. The field stays open for rapid entry. Press **Escape** to dismiss.
 
 | Input | Result |
 |---|---|
@@ -39,9 +41,23 @@ Press the `+` button in the HUD header (or tap into the input field at the botto
 | `Submit report friday !` | due next Friday, high priority |
 | `Buy milk tod !!` | due today, medium priority |
 | `Review PR #work next monday` | due next Monday, tagged "work" |
-| `in 3 days` | due in 3 days |
+| `In 3 days` | due in 3 days |
 
-Press **Return** to save (field stays open for rapid entry). Press **Escape** to dismiss.
+Tags are created automatically on first use and assigned a colour from a built-in palette.
+
+## Editing tasks
+
+Click any task row (excluding the checkbox) to expand the inline editor:
+
+- Edit the title, due date, priority, and tags
+- Toggle tags on/off from all tags in the system
+- **Save** or press Return to confirm · **Cancel** or Escape to discard · **Delete** to remove
+
+## Filtering
+
+- Use the **smart list pills** at the top to filter by time (Today, This Week, Overdue, etc.)
+- If any tasks have tags, a **tag filter strip** appears below — tap a tag chip to narrow the list further
+- Switching smart list clears the active tag filter
 
 ## Permissions
 
