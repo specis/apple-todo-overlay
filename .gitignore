@@ -1,0 +1,28 @@
+# Build output
+build/
+DerivedData/
+
+# Xcode
+*.xcuserstate
+*.xccheckout
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Instruments
+*.trace
+
+# Previews
+**/PreviewAssets.xcassets/
