@@ -28,6 +28,37 @@ final class TaskViewModel {
 
     // MARK: - Actions
 
+    func createTask(from parsed: ParsedInput) {
+        guard !parsed.title.isEmpty else { return }
+        let now = Date()
+        let task = TodoTask(
+            id: UUID().uuidString,
+            title: parsed.title,
+            notes: nil,
+            dueDate: parsed.dueDate,
+            completed: false,
+            completedAt: nil,
+            source: .local,
+            externalId: nil,
+            createdAt: now,
+            lastModified: now,
+            syncStatus: .pendingUpload,
+            listId: nil,
+            priority: parsed.priority,
+            tags: []
+        )
+
+        // Optimistic insert at the top
+        tasks.insert(task, at: 0)
+
+        do {
+            try TaskRepository.shared.saveTask(task)
+        } catch {
+            tasks.removeAll { $0.id == task.id }
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func toggleComplete(_ task: TodoTask) {
         guard let i = tasks.firstIndex(where: { $0.id == task.id }) else { return }
 

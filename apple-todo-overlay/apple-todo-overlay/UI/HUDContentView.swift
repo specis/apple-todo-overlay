@@ -2,7 +2,8 @@ import SwiftUI
 
 struct HUDContentView: View {
 
-    @State private var viewModel = TaskViewModel()
+    var viewModel: TaskViewModel
+    @State private var showingQuickAdd = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -10,10 +11,25 @@ struct HUDContentView: View {
             filterBar
             Divider()
             taskList
+            if showingQuickAdd {
+                QuickAddView(isVisible: $showingQuickAdd) { parsed in
+                    withAnimation(.spring(duration: 0.25)) {
+                        viewModel.createTask(from: parsed)
+                    }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .frame(width: 360, height: 560)
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onKeyPress(.escape) {
+            if showingQuickAdd {
+                withAnimation(.spring(duration: 0.2)) { showingQuickAdd = false }
+                return .handled
+            }
+            return .ignored
+        }
     }
 
     // MARK: - Header
@@ -30,6 +46,16 @@ struct HUDContentView: View {
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
                 .animation(.default, value: viewModel.filteredTasks.count)
+            Button {
+                withAnimation(.spring(duration: 0.2)) {
+                    showingQuickAdd.toggle()
+                }
+            } label: {
+                Image(systemName: showingQuickAdd ? "xmark.circle.fill" : "plus.circle.fill")
+                    .foregroundStyle(showingQuickAdd ? Color.secondary : Color.accentColor)
+                    .font(.system(size: 18))
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
         .padding(.top, 14)
@@ -107,6 +133,9 @@ struct HUDContentView: View {
             Text("Nothing here")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            Text("Tap + to add a task")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 60)
@@ -114,7 +143,7 @@ struct HUDContentView: View {
 }
 
 #Preview {
-    HUDContentView()
+    HUDContentView(viewModel: TaskViewModel())
         .frame(width: 360, height: 560)
         .background(Color.black.opacity(0.4))
 }

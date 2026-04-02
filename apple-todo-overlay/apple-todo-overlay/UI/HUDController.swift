@@ -5,6 +5,8 @@ final class HUDController {
 
     static let shared = HUDController()
 
+    let viewModel = TaskViewModel()
+
     private var panel: OverlayPanel?
     private var globalMonitor: Any?
 
@@ -14,7 +16,7 @@ final class HUDController {
 
     func setup() {
         let panel = OverlayPanel()
-        let rootView = HUDContentView()
+        let rootView = HUDContentView(viewModel: viewModel)
         panel.contentView = NSHostingView(rootView: rootView)
         positionNearTopRight(panel)
         self.panel = panel
@@ -35,6 +37,10 @@ final class HUDController {
     func toggle() {
         guard let panel else { return }
         panel.isVisible ? hide() : show()
+    }
+
+    func reload() {
+        viewModel.load()
     }
 
     // MARK: - Positioning

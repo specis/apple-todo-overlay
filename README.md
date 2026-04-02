@@ -6,12 +6,12 @@ A macOS floating HUD for managing tasks. Lives in the menu bar, floats above all
 
 - Floating overlay panel — always on top, visible on all Spaces
 - Smart list views: Today, Tomorrow, This Week, Next Week, Overdue, No Due Date, Recently Completed
-- Tags and priority levels per task
-- Quick-add tasks with natural language date input
+- Quick-add tasks with natural language input (`tomorrow`, `next friday`, `!` for high priority, `#tag`)
+- Tags and priority levels (High, Medium, Low) per task
 - Local-first SQLite database — works fully offline
-- Background sync with Apple Reminders, CloudKit, and Microsoft To Do
+- Sync with Apple Reminders on launch (CloudKit and Microsoft To Do coming)
 
-> **Status:** Early development. The floating shell and project structure are in place; task UI and sync are in progress.
+> **Status:** Active development. Core task UI, local database, quick-add, and Apple Reminders sync are working. Tags UI, inline editing, and remaining sync providers are in progress.
 
 ## Requirements
 
@@ -28,6 +28,26 @@ make clean   # delete build artefacts
 ```
 
 The app runs as a menu bar agent (no Dock icon). On first launch it appears in the top-right corner of your screen. Toggle it with the menu bar icon or ⌥Space (requires Accessibility permission).
+
+## Quick-add
+
+Press the `+` button in the HUD header (or tap into the input field at the bottom). Type naturally:
+
+| Input | Result |
+|---|---|
+| `Call dentist tomorrow` | due tomorrow |
+| `Submit report friday !` | due next Friday, high priority |
+| `Buy milk tod !!` | due today, medium priority |
+| `Review PR #work next monday` | due next Monday, tagged "work" |
+| `in 3 days` | due in 3 days |
+
+Press **Return** to save (field stays open for rapid entry). Press **Escape** to dismiss.
+
+## Permissions
+
+On first launch the app will request access to **Reminders** to sync your existing tasks. This can be revoked at any time in System Settings → Privacy & Security → Reminders.
+
+⌥Space global hotkey requires **Accessibility** permission (System Settings → Privacy & Security → Accessibility). The menu bar icon works without it.
 
 ## Project structure
 
