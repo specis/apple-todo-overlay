@@ -89,6 +89,25 @@ final class TaskRepository {
         """, params: [Date(), id])
     }
 
+    // MARK: - Lists
+
+    func upsertList(_ list: TaskList) throws {
+        try db.run("""
+            INSERT INTO task_lists (id, name, source, external_id, created_at, last_modified)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name          = excluded.name,
+                last_modified = excluded.last_modified;
+        """, params: [
+            list.id,
+            list.name,
+            list.source.rawValue,
+            list.externalId,
+            list.createdAt,
+            list.lastModified
+        ])
+    }
+
     // MARK: - Tag associations
 
     private func fetchTags(forTaskId taskId: String) throws -> [Tag] {

@@ -15,5 +15,9 @@
     <!-- Network (needed for Microsoft To Do and CloudKit) -->
     <key>com.apple.security.network.client</key>
     <true/>
+
+    <!-- CloudKit entitlements require an Apple Developer Program account. -->
+    <!-- Add com.apple.developer.icloud-services and                       -->
+    <!-- com.apple.developer.icloud-container-identifiers here when ready. -->
 </dict>
 </plist>

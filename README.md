@@ -11,9 +11,11 @@ A macOS floating HUD for managing tasks. Lives in the menu bar, floats above all
 - Priority levels (High, Medium, Low) with colour-coded indicators
 - Inline task editing — click any row to edit title, due date, priority, and tags
 - Local-first SQLite database — works fully offline
-- Sync with Apple Reminders on launch (CloudKit and Microsoft To Do coming)
+- Sync with Apple Reminders and Microsoft To Do (background sync every 15 minutes, incremental)
+- Configurable HUD opacity via menu bar slider
+- Menu bar icon only visible when the HUD is open
 
-> **Status:** Active development. Core task UI, local database, quick-add, tags, inline editing, and Apple Reminders sync are all working.
+> **Status:** Active development. Core task UI, local database, quick-add, tags, inline editing, Apple Reminders sync, and Microsoft To Do sync are all working.
 
 ## Requirements
 
@@ -29,7 +31,12 @@ make kill    # stop the app
 make clean   # delete build artefacts
 ```
 
-The app runs as a menu bar agent (no Dock icon). On first launch it appears in the top-right corner of your screen. Toggle it with the menu bar icon or ⌥Space (requires Accessibility permission).
+The app runs as a menu bar agent (no Dock icon). On first launch it appears in the top-right corner of your screen. Toggle it with the menu bar icon or **⌃⌥Space** (requires Accessibility permission).
+
+```bash
+make release    # production build
+make package    # builds + zips apple-todo-overlay.zip
+```
 
 ## Quick-add
 
@@ -59,11 +66,21 @@ Click any task row (excluding the checkbox) to expand the inline editor:
 - If any tasks have tags, a **tag filter strip** appears below — tap a tag chip to narrow the list further
 - Switching smart list clears the active tag filter
 
+## Sync
+
+### Apple Reminders
+Sync starts automatically on launch if Reminders access has been granted. The app fetches incomplete reminders and any completed since the last sync.
+
+### Microsoft To Do
+Click **Connect Microsoft To Do…** in the menu bar popover. A browser window opens for OAuth sign-in. After sign-in, a full initial sync runs and subsequent syncs are incremental (only tasks modified since the last run). Sync runs every 15 minutes in the background and whenever network connectivity is restored.
+
+To disconnect, sign out of your Microsoft account in the browser and restart the app.
+
 ## Permissions
 
 On first launch the app will request access to **Reminders** to sync your existing tasks. This can be revoked at any time in System Settings → Privacy & Security → Reminders.
 
-⌥Space global hotkey requires **Accessibility** permission (System Settings → Privacy & Security → Accessibility). The menu bar icon works without it.
+**⌃⌥Space** global hotkey requires **Accessibility** permission (System Settings → Privacy & Security → Accessibility). The app will prompt on first launch and poll until granted. The menu bar icon works without it.
 
 ## Project structure
 

@@ -21,7 +21,13 @@ final class SyncEngine {
         let repo = TaskRepository.shared
         let since = (try? SyncStateStore.lastSyncDate(for: source)) ?? .distantPast
 
-        // 1. Fetch remote
+        // 1a. Sync lists so task list_id foreign keys resolve
+        let lists = try await provider.fetchLists()
+        for list in lists {
+            try repo.upsertList(list)
+        }
+
+        // 1b. Fetch remote task changes
         let remoteChanges = try await provider.fetchChanges(since: since)
 
         // 2. Build local index by externalId for fast lookup
