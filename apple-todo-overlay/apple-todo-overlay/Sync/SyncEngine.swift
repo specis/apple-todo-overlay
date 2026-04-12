@@ -19,18 +19,26 @@ final class SyncEngine {
     @discardableResult
     func sync(provider: TaskProvider, source: TaskSource) async throws -> SyncResult {
         let repo = TaskRepository.shared
+        let db   = LocalDatabase.shared
         let since = (try? SyncStateStore.lastSyncDate(for: source)) ?? .distantPast
 
-        // 1a. Sync lists so task list_id foreign keys resolve
+        // 1a. Sync lists so task list_id foreign keys resolve (one transaction)
         let lists = try await provider.fetchLists()
-        for list in lists {
-            try repo.upsertList(list)
+        if !lists.isEmpty {
+            try db.beginTransaction()
+            do {
+                for list in lists { try repo.upsertList(list) }
+                try db.commitTransaction()
+            } catch {
+                db.rollbackTransaction()
+                throw error
+            }
         }
 
         // 1b. Fetch remote task changes
         let remoteChanges = try await provider.fetchChanges(since: since)
 
-        // 2. Build local index by externalId for fast lookup
+        // 2. Merge remote changes into local DB — one transaction for the whole batch
         let localTasks = try repo.getAllTasks()
         let byExternalId: [String: TodoTask] = Dictionary(
             uniqueKeysWithValues: localTasks.compactMap { t in t.externalId.map { ($0, t) } }
@@ -39,64 +47,79 @@ final class SyncEngine {
         var fetched = 0
         var conflicts = 0
 
-        for remote in remoteChanges {
-            fetched += 1
+        if !remoteChanges.isEmpty {
+            try db.beginTransaction()
+            do {
+                for remote in remoteChanges {
+                    fetched += 1
 
-            guard let extId = remote.externalId else {
-                // Remote task has no externalId — treat as new
-                if byExternalId[remote.id] == nil {
-                    try repo.saveTask(remote)
-                }
-                continue
-            }
+                    guard let extId = remote.externalId else {
+                        if byExternalId[remote.id] == nil { try repo.saveTask(remote) }
+                        continue
+                    }
 
-            if let local = byExternalId[extId] {
-                let winner = ConflictResolver.resolve(local: local, remote: remote)
-                if winner.lastModified > local.lastModified {
-                    // Remote won the conflict — update local DB
-                    try repo.updateTask(winner)
-                    conflicts += 1
+                    if let local = byExternalId[extId] {
+                        let winner = ConflictResolver.resolve(local: local, remote: remote)
+                        if winner.lastModified > local.lastModified {
+                            try repo.updateTask(winner)
+                            conflicts += 1
+                        }
+                    } else {
+                        try repo.saveTask(remote)
+                    }
                 }
-                // Local won — no action; local change will be pushed below
-            } else {
-                // New remote task not yet in local DB
-                try repo.saveTask(remote)
+                try db.commitTransaction()
+            } catch {
+                db.rollbackTransaction()
+                throw error
             }
         }
 
-        // 3. Push local pending changes for this source
+        // 3. Push local pending changes then mark them synced in one transaction
         let pending = localTasks.filter {
-            $0.syncStatus == .pendingUpload && $0.source == source
+            $0.syncStatus == .pendingUpload && ($0.source == source || $0.source == .local)
         }
         if !pending.isEmpty {
             try await provider.pushChanges(pending)
-            for task in pending {
-                let synced = TodoTask(
-                    id:           task.id,
-                    title:        task.title,
-                    notes:        task.notes,
-                    dueDate:      task.dueDate,
-                    completed:    task.completed,
-                    completedAt:  task.completedAt,
-                    source:       task.source,
-                    externalId:   task.externalId,
-                    createdAt:    task.createdAt,
-                    lastModified: task.lastModified,
-                    syncStatus:   .synced,
-                    listId:       task.listId,
-                    priority:     task.priority,
-                    tags:         task.tags
-                )
-                try repo.updateTask(synced)
+            try db.beginTransaction()
+            do {
+                for task in pending {
+                    let synced = TodoTask(
+                        id:           task.id,
+                        title:        task.title,
+                        notes:        task.notes,
+                        dueDate:      task.dueDate,
+                        completed:    task.completed,
+                        completedAt:  task.completedAt,
+                        source:       task.source,
+                        externalId:   task.externalId,
+                        createdAt:    task.createdAt,
+                        lastModified: task.lastModified,
+                        syncStatus:   .synced,
+                        listId:       task.listId,
+                        priority:     task.priority,
+                        tags:         task.tags
+                    )
+                    try repo.updateTask(synced)
+                }
+                try db.commitTransaction()
+            } catch {
+                db.rollbackTransaction()
+                throw error
             }
         }
 
-        // 4. Push deletions — remote-delete soft-deleted tasks then hard-purge locally
+        // 4. Push deletions — remote-delete then hard-purge locally in one transaction
         let deleted = (try? repo.getDeletedTasks(for: source)) ?? []
         if !deleted.isEmpty {
             try await provider.deleteRemote(deleted)
-            for task in deleted {
-                try repo.hardDeleteTask(id: task.id)
+            try db.beginTransaction()
+            do {
+                for task in deleted { try repo.hardDeleteTask(id: task.id) }
+                try db.commitTransaction()
+            } catch {
+                db.rollbackTransaction()
+                throw error
             }
         }
 

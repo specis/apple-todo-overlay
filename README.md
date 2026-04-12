@@ -111,12 +111,23 @@ apple-todo-overlay/
 
 ### Medium priority
 - [ ] Close button on the HUD
-- [ ] Task grouping by list in the All view
-- [ ] Window position persistence across relaunches
+- [x] Task grouping by list in the All view
+- [x] Window position persistence across relaunches
 - [ ] Recurring task awareness (don't mark MS Todo series complete)
 
 ### Blocked
 - [ ] CloudKit sync — requires paid Apple Developer account
+
+## Performance
+
+The app is tuned to stay fast as the task list grows:
+
+- **SQLite page cache** — 8 MB in-memory cache (`PRAGMA cache_size`) so repeated reads don't hit disk.
+- **WAL + NORMAL sync** — Write-Ahead Logging with `synchronous = NORMAL` avoids full fsyncs on every write while remaining crash-safe.
+- **Composite index** — `(is_deleted, completed, due_date)` covers the exact filter pattern used by all smart list views.
+- **Batch tag loading** — `getAllTasks` fetches tags for all tasks in one JOIN query instead of one query per task.
+- **Transaction batching** — Sync write loops (remote merge, push status updates, deletions) run inside a single explicit transaction, avoiding per-row commit overhead.
+- **Cached derived state** — `filteredTasks`, `urgentCount`, `availableTags`, and `groupedFilteredTasks` are stored properties updated only when their inputs change, not recomputed on every SwiftUI render pass.
 
 ## Architecture
 

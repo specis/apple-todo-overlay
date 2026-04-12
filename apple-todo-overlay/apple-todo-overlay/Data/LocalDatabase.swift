@@ -62,6 +62,9 @@ final class LocalDatabase {
 
         try execute("PRAGMA journal_mode = WAL;")
         try execute("PRAGMA foreign_keys = ON;")
+        try execute("PRAGMA synchronous = NORMAL;")  // safe with WAL; avoids costly full-fsync
+        try execute("PRAGMA cache_size = -8000;")    // 8 MB page cache (negative = kibibytes)
+        try execute("PRAGMA temp_store = MEMORY;")   // temp tables stay in RAM
         try runMigrations()
     }
 
@@ -93,6 +96,12 @@ final class LocalDatabase {
         }
         return rows
     }
+
+    // MARK: - Transactions
+
+    func beginTransaction() throws  { try execute("BEGIN;") }
+    func commitTransaction() throws { try execute("COMMIT;") }
+    func rollbackTransaction()      { try? execute("ROLLBACK;") }
 
     // MARK: - Write
 
@@ -173,6 +182,7 @@ final class LocalDatabase {
         let current = rows.first?["version"]?.intValue ?? 0
 
         if current < 1 { try migrateV1() ; try setVersion(1, previous: current) }
+        if current < 2 { try migrateV2() ; try setVersion(2, previous: max(current, 1)) }
     }
 
     private func setVersion(_ version: Int64, previous: Int64) throws {
@@ -267,5 +277,13 @@ final class LocalDatabase {
         try execute("CREATE INDEX IF NOT EXISTS idx_tasks_priority     ON tasks(priority);")
         try execute("CREATE INDEX IF NOT EXISTS idx_task_tags_task_id  ON task_tags(task_id);")
         try execute("CREATE INDEX IF NOT EXISTS idx_task_tags_tag_id   ON task_tags(tag_id);")
+    }
+
+    // Version 2 — composite index covering the main hot query pattern
+    private func migrateV2() throws {
+        try execute("""
+            CREATE INDEX IF NOT EXISTS idx_tasks_active
+            ON tasks(is_deleted, completed, due_date);
+        """)
     }
 }

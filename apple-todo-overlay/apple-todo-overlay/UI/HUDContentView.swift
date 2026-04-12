@@ -200,57 +200,26 @@ struct HUDContentView: View {
 
     // MARK: - Task list
 
+    private var useGrouped: Bool {
+        viewModel.activeFilter == .all && viewModel.searchText.isEmpty
+    }
+
     private var taskList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 if viewModel.filteredTasks.isEmpty {
                     emptyState
+                } else if useGrouped {
+                    ForEach(viewModel.groupedFilteredTasks, id: \.name) { group in
+                        listSectionHeader(group.name)
+                        ForEach(group.tasks) { task in
+                            taskRow(task)
+                            Divider().padding(.leading, 42)
+                        }
+                    }
                 } else {
                     ForEach(viewModel.filteredTasks) { task in
-                        let isEditing = viewModel.editingTaskId == task.id
-                        VStack(spacing: 0) {
-                            TaskRowView(
-                                task: task,
-                                isExpanded: isEditing,
-                                onToggle: {
-                                    withAnimation(.spring(duration: 0.25)) {
-                                        viewModel.toggleComplete(task)
-                                    }
-                                },
-                                onTap: {
-                                    withAnimation(.spring(duration: 0.2)) {
-                                        viewModel.editingTaskId = isEditing ? nil : task.id
-                                    }
-                                }
-                            )
-
-                            if isEditing {
-                                TaskEditView(
-                                    task: task,
-                                    allTags: viewModel.availableTags,
-                                    onSave: { updated in
-                                        withAnimation(.spring(duration: 0.2)) {
-                                            viewModel.updateTask(updated)
-                                        }
-                                    },
-                                    onDelete: {
-                                        withAnimation(.spring(duration: 0.2)) {
-                                            viewModel.deleteTask(task)
-                                        }
-                                    },
-                                    onDismiss: {
-                                        withAnimation(.spring(duration: 0.2)) {
-                                            viewModel.editingTaskId = nil
-                                        }
-                                    }
-                                )
-                                .transition(.asymmetric(
-                                    insertion: .move(edge: .top).combined(with: .opacity),
-                                    removal: .opacity
-                                ))
-                            }
-                        }
-
+                        taskRow(task)
                         Divider().padding(.leading, 42)
                     }
                 }
@@ -258,6 +227,65 @@ struct HUDContentView: View {
             .padding(.bottom, 8)
         }
         .animation(.spring(duration: 0.25), value: viewModel.filteredTasks.map(\.id))
+    }
+
+    private func listSectionHeader(_ name: String) -> some View {
+        HStack {
+            Text(name)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private func taskRow(_ task: TodoTask) -> some View {
+        let isEditing = viewModel.editingTaskId == task.id
+        VStack(spacing: 0) {
+            TaskRowView(
+                task: task,
+                isExpanded: isEditing,
+                onToggle: {
+                    withAnimation(.spring(duration: 0.25)) {
+                        viewModel.toggleComplete(task)
+                    }
+                },
+                onTap: {
+                    withAnimation(.spring(duration: 0.2)) {
+                        viewModel.editingTaskId = isEditing ? nil : task.id
+                    }
+                }
+            )
+            if isEditing {
+                TaskEditView(
+                    task: task,
+                    allTags: viewModel.availableTags,
+                    onSave: { updated in
+                        withAnimation(.spring(duration: 0.2)) {
+                            viewModel.updateTask(updated)
+                        }
+                    },
+                    onDelete: {
+                        withAnimation(.spring(duration: 0.2)) {
+                            viewModel.deleteTask(task)
+                        }
+                    },
+                    onDismiss: {
+                        withAnimation(.spring(duration: 0.2)) {
+                            viewModel.editingTaskId = nil
+                        }
+                    }
+                )
+                .transition(.asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity),
+                    removal: .opacity
+                ))
+            }
+        }
     }
 
     private var emptyState: some View {

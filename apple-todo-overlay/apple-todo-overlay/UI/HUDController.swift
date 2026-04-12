@@ -2,8 +2,11 @@ import AppKit
 import ApplicationServices
 import SwiftUI
 
+private let hudOriginXKey = "hudOriginX"
+private let hudOriginYKey = "hudOriginY"
+
 @Observable
-final class HUDController {
+final class HUDController: NSObject, NSWindowDelegate {
 
     static let shared = HUDController()
 
@@ -17,7 +20,7 @@ final class HUDController {
     private var globalMonitor: Any?
     private var localMonitor: Any?
 
-    private init() {}
+    private override init() {}
 
     // MARK: - Setup
 
@@ -25,7 +28,8 @@ final class HUDController {
         let panel = OverlayPanel()
         let rootView = HUDContentView(viewModel: viewModel)
         panel.contentView = NSHostingView(rootView: rootView)
-        positionNearTopRight(panel)
+        panel.delegate = self
+        restoreOrDefaultPosition(panel)
         let savedOpacity = UserDefaults.standard.object(forKey: "hudOpacity") as? Double ?? 1.0
         panel.alphaValue = CGFloat(max(0.2, min(1.0, savedOpacity)))
         self.panel = panel
@@ -62,12 +66,37 @@ final class HUDController {
 
     // MARK: - Positioning
 
+    private func restoreOrDefaultPosition(_ panel: NSPanel) {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: hudOriginXKey) != nil {
+            let x = defaults.double(forKey: hudOriginXKey)
+            let y = defaults.double(forKey: hudOriginYKey)
+            let origin = NSPoint(x: x, y: y)
+            // Clamp to visible screen area so the panel can't be lost off-screen
+            if let screen = NSScreen.main, screen.visibleFrame.contains(origin) {
+                panel.setFrameOrigin(origin)
+                return
+            }
+        }
+        // First launch or off-screen — default to top-right corner
+        positionNearTopRight(panel)
+    }
+
     private func positionNearTopRight(_ panel: NSPanel) {
         guard let screen = NSScreen.main else { return }
         let margin: CGFloat = 16
         let x = screen.visibleFrame.maxX - panel.frame.width - margin
         let y = screen.visibleFrame.maxY - panel.frame.height - margin
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowDidMove(_ notification: Notification) {
+        guard let panel else { return }
+        let origin = panel.frame.origin
+        UserDefaults.standard.set(Double(origin.x), forKey: hudOriginXKey)
+        UserDefaults.standard.set(Double(origin.y), forKey: hudOriginYKey)
     }
 
     // MARK: - Accessibility + global hotkey

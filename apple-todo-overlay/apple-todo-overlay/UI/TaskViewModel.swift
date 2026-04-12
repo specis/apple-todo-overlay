@@ -3,35 +3,77 @@ import Foundation
 @Observable
 final class TaskViewModel {
 
-    var activeFilter: SmartList = .dueToday
-    var activeTagFilter: Tag? = nil
+    var activeFilter: SmartList = .dueToday {
+        didSet { updateCaches() }
+    }
+    var activeTagFilter: Tag? = nil {
+        didSet { updateCaches() }
+    }
     var editingTaskId: String? = nil
-    var searchText: String = ""
-    private(set) var tasks: [TodoTask] = []
+    var searchText: String = "" {
+        didSet { updateCaches() }
+    }
+    private(set) var tasks: [TodoTask] = [] {
+        didSet { updateCaches() }
+    }
+    private(set) var lists: [TaskList] = [] {
+        didSet { updateCaches() }
+    }
     private(set) var errorMessage: String?
+
+    // Cached derived state — recomputed only when inputs change, not on every render.
+    private(set) var filteredTasks: [TodoTask] = []
+    private(set) var groupedFilteredTasks: [(name: String, tasks: [TodoTask])] = []
+    private(set) var urgentCount: Int = 0
+    private(set) var availableTags: [Tag] = []
 
     init() {
         load()
     }
 
-    var filteredTasks: [TodoTask] {
+    // MARK: - Cache update
+
+    private func updateCaches() {
+        // filteredTasks
+        let filtered: [TodoTask]
         if !searchText.isEmpty {
-            return FilterService.applySearch(searchText, to: tasks)
+            filtered = FilterService.applySearch(searchText, to: tasks)
+        } else {
+            filtered = FilterService.applyTagFilter(
+                activeTagFilter?.id,
+                to: FilterService.apply(activeFilter, to: tasks)
+            )
         }
-        let byList = FilterService.apply(activeFilter, to: tasks)
-        return FilterService.applyTagFilter(activeTagFilter?.id, to: byList)
-    }
+        filteredTasks = filtered
 
-    /// Number of incomplete tasks that are overdue or due today — used for the menu bar badge.
-    var urgentCount: Int {
-        let overdue  = FilterService.apply(.overdue,   to: tasks).count
-        let dueToday = FilterService.apply(.dueToday,  to: tasks).count
-        return overdue + dueToday
-    }
+        // groupedFilteredTasks (only meaningful for the All view)
+        let listIndex = Dictionary(uniqueKeysWithValues: lists.map { ($0.id, $0.name) })
+        var groups: [(name: String, tasks: [TodoTask])] = []
+        var seen: [String: Int] = [:]
+        var local: [TodoTask] = []
+        for task in filtered {
+            if let listId = task.listId, let name = listIndex[listId] {
+                if let i = seen[name] { groups[i].tasks.append(task) }
+                else { seen[name] = groups.count; groups.append((name: name, tasks: [task])) }
+            } else {
+                local.append(task)
+            }
+        }
+        if !local.isEmpty { groups.append((name: "Local", tasks: local)) }
+        groupedFilteredTasks = groups.sorted { $0.name < $1.name }
 
-    var availableTags: [Tag] {
-        var seen = Set<String>()
-        return tasks.flatMap { $0.tags }.filter { seen.insert($0.id).inserted }
+        // urgentCount — one pass, reuses today/tomorrow computed once
+        let cal = Calendar.current
+        let today    = cal.startOfDay(for: Date())
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: today)!
+        urgentCount = tasks.filter {
+            guard !$0.completed, let d = $0.dueDate else { return false }
+            return d < tomorrow
+        }.count
+
+        // availableTags
+        var seenTags = Set<String>()
+        availableTags = tasks.flatMap { $0.tags }.filter { seenTags.insert($0.id).inserted }
     }
 
     // MARK: - Load
@@ -39,6 +81,7 @@ final class TaskViewModel {
     func load() {
         do {
             tasks = try TaskRepository.shared.getAllTasks()
+            lists = try TaskRepository.shared.getAllLists()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

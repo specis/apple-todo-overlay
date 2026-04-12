@@ -15,11 +15,33 @@ final class TaskRepository {
             WHERE is_deleted = 0
             ORDER BY (due_date IS NULL), due_date ASC, created_at DESC;
         """)
-        return try rows.compactMap { row in
-            guard let id = row["id"]?.textValue else { return nil }
-            let tags = try fetchTags(forTaskId: id)
-            return TaskMapper.toTask(row: row, tags: tags)
+        guard !rows.isEmpty else { return [] }
+
+        // Fetch all tags for active tasks in one JOIN — avoids N+1 per-task queries.
+        let tagRows = try db.query("""
+            SELECT tt.task_id, t.id, t.name, t.colour, t.created_at
+            FROM task_tags tt
+            JOIN tags t ON t.id = tt.tag_id
+            WHERE tt.task_id IN (SELECT id FROM tasks WHERE is_deleted = 0);
+        """)
+        var tagsByTask: [String: [Tag]] = [:]
+        for tagRow in tagRows {
+            guard let taskId = tagRow["task_id"]?.textValue,
+                  let tag    = TaskMapper.toTag(row: tagRow) else { continue }
+            tagsByTask[taskId, default: []].append(tag)
         }
+
+        return rows.compactMap { row in
+            guard let id = row["id"]?.textValue else { return nil }
+            return TaskMapper.toTask(row: row, tags: tagsByTask[id] ?? [])
+        }
+    }
+
+    func getAllLists() throws -> [TaskList] {
+        let rows = try db.query("""
+            SELECT * FROM task_lists WHERE is_deleted = 0 ORDER BY name ASC;
+        """)
+        return rows.compactMap { TaskMapper.toTaskList(row: $0) }
     }
 
     /// Returns soft-deleted tasks for a given source that still have a remote externalId
