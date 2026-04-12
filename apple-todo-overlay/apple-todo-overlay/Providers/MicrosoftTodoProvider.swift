@@ -74,16 +74,60 @@ final class MicrosoftTodoProvider: TaskProvider {
 
     func pushChanges(_ tasks: [TodoTask]) async throws {
         let token = try await validToken()
+
+        // Resolve a default list ID for tasks that have no assigned list
+        var defaultListId: String?
+
         for task in tasks {
-            guard let extId = task.externalId, let listId = task.listId else { continue }
-            let update = MSTaskUpdate(
-                status: task.completed ? "completed" : "notStarted",
-                importance: task.priority.msImportance,
-                completedDateTime: task.completedAt.map { MSDateTimeTimeZone(dateTime: isoFull.string(from: $0)) }
-            )
-            let body = try JSONEncoder().encode(update)
-            try await patch("/lists/\(listId)/tasks/\(extId)", body: body, token: token)
+            if let extId = task.externalId, let listId = task.listId {
+                // Existing MS Todo task — PATCH all editable fields
+                let update = MSTaskPatch(
+                    title: task.title,
+                    status: task.completed ? "completed" : "notStarted",
+                    importance: task.priority.msImportance,
+                    body: MSBody(content: task.notes ?? ""),
+                    dueDateTime: task.dueDate.map { MSDateTimeTimeZone(dateTime: isoDateOnly.string(from: $0)) },
+                    completedDateTime: task.completedAt.map { MSDateTimeTimeZone(dateTime: isoFull.string(from: $0)) }
+                )
+                let body = try JSONEncoder().encode(update)
+                msLog("push PATCH task '\(task.title)' → list \(listId)")
+                try await patch("/lists/\(listId)/tasks/\(extId)", body: body, token: token)
+
+            } else {
+                // New local task — POST to the default MS Todo list
+                if defaultListId == nil {
+                    defaultListId = try await resolveDefaultListId(token: token)
+                }
+                guard let listId = defaultListId else {
+                    msLog("push skip '\(task.title)': no default list available")
+                    continue
+                }
+                let create = MSTaskCreate(
+                    title: task.title,
+                    importance: task.priority.msImportance,
+                    body: MSBody(content: task.notes ?? ""),
+                    dueDateTime: task.dueDate.map { MSDateTimeTimeZone(dateTime: isoDateOnly.string(from: $0)) }
+                )
+                let body = try JSONEncoder().encode(create)
+                msLog("push POST task '\(task.title)' → list \(listId)")
+                let responseData = try await post("/lists/\(listId)/tasks", body: body, token: token)
+                if let created = try? JSONDecoder().decode(MSTask.self, from: responseData),
+                   var updated = (try? TaskRepository.shared.getAllTasks())?.first(where: { $0.id == task.id }) {
+                    updated.externalId = created.id
+                    updated.listId = listId
+                    updated.source = .microsoftTodo
+                    updated.syncStatus = .synced
+                    try? TaskRepository.shared.updateTask(updated)
+                    msLog("push created externalId \(created.id) for '\(task.title)'")
+                }
+            }
         }
+    }
+
+    private func resolveDefaultListId(token: String) async throws -> String? {
+        let data = try await get("/lists", token: token)
+        let lists = try JSONDecoder().decode(ODataList<MSList>.self, from: data).value
+        return (lists.first(where: { $0.wellknownListName == "defaultList" }) ?? lists.first)?.id
     }
 
     // MARK: - Sign in / out
@@ -241,7 +285,26 @@ final class MicrosoftTodoProvider: TaskProvider {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = body
-        _ = try await URLSession.shared.data(for: req)
+        let (_, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if status < 200 || status >= 300 {
+            msLog("PATCH \(path) failed with status \(status)")
+        }
+    }
+
+    @discardableResult
+    private func post(_ path: String, body: Data, token: String) async throws -> Data {
+        var req = URLRequest(url: URL(string: Self.graphBase + path)!)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = body
+        let (data, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if status < 200 || status >= 300 {
+            msLog("POST \(path) failed with status \(status): \(String(data: data, encoding: .utf8) ?? "")")
+        }
+        return data
     }
 
     // MARK: - Mapping
@@ -285,6 +348,14 @@ final class MicrosoftTodoProvider: TaskProvider {
     private let isoBasic: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    // MS Todo dueDateTime uses date-only (midnight UTC)
+    private let isoDateOnly: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+        f.timeZone = TimeZone(identifier: "UTC")
         return f
     }()
 }
@@ -349,6 +420,7 @@ private struct ODataList<T: Decodable>: Decodable {
 private struct MSList: Decodable {
     let id: String
     let displayName: String
+    let wellknownListName: String?
 }
 
 private struct MSTask: Decodable {
@@ -363,7 +435,7 @@ private struct MSTask: Decodable {
     let body: MSBody?
 }
 
-private struct MSBody: Decodable {
+private struct MSBody: Codable {
     let content: String?
 }
 
@@ -372,10 +444,20 @@ private struct MSDateTimeTimeZone: Codable {
     var timeZone: String = "UTC"
 }
 
-private struct MSTaskUpdate: Encodable {
+private struct MSTaskPatch: Encodable {
+    let title: String
     let status: String
     let importance: String
+    let body: MSBody
+    let dueDateTime: MSDateTimeTimeZone?
     let completedDateTime: MSDateTimeTimeZone?
+}
+
+private struct MSTaskCreate: Encodable {
+    let title: String
+    let importance: String
+    let body: MSBody
+    let dueDateTime: MSDateTimeTimeZone?
 }
 
 private struct MSTokenResponse: Decodable {

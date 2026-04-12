@@ -72,9 +72,14 @@ final class TaskViewModel {
 
     func updateTask(_ updated: TodoTask) {
         guard let i = tasks.firstIndex(where: { $0.id == updated.id }) else { return }
-        tasks[i] = updated
+        var saved = updated
+        if updated.source != .local {
+            saved.syncStatus = .pendingUpload
+            saved.lastModified = Date()
+        }
+        tasks[i] = saved
         do {
-            try TaskRepository.shared.updateTask(updated)
+            try TaskRepository.shared.updateTask(saved)
             try TaskRepository.shared.removeAllTags(forTaskId: updated.id)
             for tag in updated.tags {
                 try TaskRepository.shared.addTag(tagId: tag.id, toTask: updated.id)

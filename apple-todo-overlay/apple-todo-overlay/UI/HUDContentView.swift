@@ -37,6 +37,22 @@ struct HUDContentView: View {
             }
             return .ignored
         }
+        .onKeyPress(.leftArrow) {
+            guard viewModel.editingTaskId == nil && !showingQuickAdd else { return .ignored }
+            let all = SmartList.allCases
+            if let i = all.firstIndex(of: viewModel.activeFilter), i > 0 {
+                withAnimation(.spring(duration: 0.2)) { viewModel.activeFilter = all[i - 1] }
+            }
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            guard viewModel.editingTaskId == nil && !showingQuickAdd else { return .ignored }
+            let all = SmartList.allCases
+            if let i = all.firstIndex(of: viewModel.activeFilter), i < all.count - 1 {
+                withAnimation(.spring(duration: 0.2)) { viewModel.activeFilter = all[i + 1] }
+            }
+            return .handled
+        }
     }
 
     // MARK: - Header
