@@ -2,15 +2,21 @@ import SwiftUI
 
 struct HUDContentView: View {
 
-    var viewModel: TaskViewModel
+    @Bindable var viewModel: TaskViewModel
     @State private var showingQuickAdd = false
+    @State private var showingSearch = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            filterBar
-            if !viewModel.availableTags.isEmpty {
-                tagFilterBar
+            if showingSearch {
+                searchBar
+            } else {
+                filterBar
+                if !viewModel.availableTags.isEmpty {
+                    tagFilterBar
+                }
             }
             Divider()
             taskList
@@ -31,27 +37,15 @@ struct HUDContentView: View {
                 viewModel.editingTaskId = nil
                 return .handled
             }
+            if showingSearch {
+                closeSearch()
+                return .handled
+            }
             if showingQuickAdd {
                 withAnimation(.spring(duration: 0.2)) { showingQuickAdd = false }
                 return .handled
             }
             return .ignored
-        }
-        .onKeyPress(.leftArrow) {
-            guard viewModel.editingTaskId == nil && !showingQuickAdd else { return .ignored }
-            let all = SmartList.allCases
-            if let i = all.firstIndex(of: viewModel.activeFilter), i > 0 {
-                withAnimation(.spring(duration: 0.2)) { viewModel.activeFilter = all[i - 1] }
-            }
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            guard viewModel.editingTaskId == nil && !showingQuickAdd else { return .ignored }
-            let all = SmartList.allCases
-            if let i = all.firstIndex(of: viewModel.activeFilter), i < all.count - 1 {
-                withAnimation(.spring(duration: 0.2)) { viewModel.activeFilter = all[i + 1] }
-            }
-            return .handled
         }
     }
 
@@ -70,6 +64,22 @@ struct HUDContentView: View {
                 .contentTransition(.numericText())
                 .animation(.default, value: viewModel.filteredTasks.count)
             Button {
+                withAnimation(.spring(duration: 0.2)) {
+                    showingSearch.toggle()
+                    if showingSearch {
+                        showingQuickAdd = false
+                        searchFocused = true
+                    } else {
+                        closeSearch()
+                    }
+                }
+            } label: {
+                Image(systemName: showingSearch ? "xmark.circle.fill" : "magnifyingglass")
+                    .foregroundStyle(showingSearch ? Color.secondary : Color.primary.opacity(0.6))
+                    .font(.system(size: showingSearch ? 18 : 15))
+            }
+            .buttonStyle(.plain)
+            Button {
                 withAnimation(.spring(duration: 0.2)) { showingQuickAdd.toggle() }
             } label: {
                 Image(systemName: showingQuickAdd ? "xmark.circle.fill" : "plus.circle.fill")
@@ -86,6 +96,44 @@ struct HUDContentView: View {
     private var countLabel: String {
         let n = viewModel.filteredTasks.count
         return n == 1 ? "1 task" : "\(n) tasks"
+    }
+
+    // MARK: - Search bar
+
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.system(size: 13))
+            TextField("Search tasks…", text: $viewModel.searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .focused($searchFocused)
+                .onSubmit { }
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    viewModel.searchText = ""
+                    searchFocused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 14)
+        .padding(.bottom, 8)
+    }
+
+    private func closeSearch() {
+        withAnimation(.spring(duration: 0.2)) {
+            showingSearch = false
+            viewModel.searchText = ""
+        }
     }
 
     // MARK: - Smart list filter bar
@@ -206,13 +254,13 @@ struct HUDContentView: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Image(systemName: "checkmark.circle")
+            Image(systemName: viewModel.searchText.isEmpty ? "checkmark.circle" : "magnifyingglass")
                 .font(.system(size: 36))
                 .foregroundStyle(.tertiary)
-            Text("Nothing here")
+            Text(viewModel.searchText.isEmpty ? "Nothing here" : "No results")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Tap + to add a task")
+            Text(viewModel.searchText.isEmpty ? "Tap + to add a task" : "Try a different search term")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }

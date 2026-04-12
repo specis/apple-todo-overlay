@@ -13,6 +13,7 @@ final class HUDController {
 
     private var panel: OverlayPanel?
     private var globalMonitor: Any?
+    private var localMonitor: Any?
 
     private init() {}
 
@@ -40,11 +41,13 @@ final class HUDController {
     func show() {
         panel?.orderFront(nil)
         isVisible = true
+        registerArrowKeyMonitor()
     }
 
     func hide() {
         panel?.orderOut(nil)
         isVisible = false
+        if let m = localMonitor { NSEvent.removeMonitor(m); localMonitor = nil }
     }
 
     func toggle() {
@@ -116,6 +119,40 @@ final class HUDController {
                 self.registerGlobalHotkey()
             } else {
                 self.pollForAccessibility()
+            }
+        }
+    }
+
+    /// Local arrow key monitor — cycles through smart list filter pills.
+    /// Runs only while the HUD is visible. Skips when a text field has focus
+    /// (search bar, quick-add) so typing is unaffected.
+    private func registerArrowKeyMonitor() {
+        guard localMonitor == nil else { return }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.isVisible else { return event }
+            // Let text input fields handle their own arrow keys
+            if let responder = NSApp.keyWindow?.firstResponder,
+               responder is NSTextField || responder is NSTextView {
+                return event
+            }
+            let all = SmartList.allCases
+            switch event.keyCode {
+            case 123: // left arrow
+                if let i = all.firstIndex(of: self.viewModel.activeFilter), i > 0 {
+                    DispatchQueue.main.async {
+                        self.viewModel.activeFilter = all[i - 1]
+                    }
+                }
+                return nil
+            case 124: // right arrow
+                if let i = all.firstIndex(of: self.viewModel.activeFilter), i < all.count - 1 {
+                    DispatchQueue.main.async {
+                        self.viewModel.activeFilter = all[i + 1]
+                    }
+                }
+                return nil
+            default:
+                return event
             }
         }
     }

@@ -6,6 +6,7 @@ final class TaskViewModel {
     var activeFilter: SmartList = .dueToday
     var activeTagFilter: Tag? = nil
     var editingTaskId: String? = nil
+    var searchText: String = ""
     private(set) var tasks: [TodoTask] = []
     private(set) var errorMessage: String?
 
@@ -14,6 +15,9 @@ final class TaskViewModel {
     }
 
     var filteredTasks: [TodoTask] {
+        if !searchText.isEmpty {
+            return FilterService.applySearch(searchText, to: tasks)
+        }
         let byList = FilterService.apply(activeFilter, to: tasks)
         return FilterService.applyTagFilter(activeTagFilter?.id, to: byList)
     }

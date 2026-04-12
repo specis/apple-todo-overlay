@@ -7,6 +7,14 @@ enum FilterService {
         return tasks.filter { $0.tags.contains { $0.id == tagId } }
     }
 
+    static func applySearch(_ query: String, to tasks: [TodoTask]) -> [TodoTask] {
+        let q = query.lowercased()
+        return tasks.filter {
+            $0.title.lowercased().contains(q) ||
+            ($0.notes?.lowercased().contains(q) == true)
+        }
+    }
+
 
     static func apply(_ filter: SmartList, to tasks: [TodoTask]) -> [TodoTask] {
         let cal = Calendar.current
