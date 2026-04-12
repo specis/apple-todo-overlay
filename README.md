@@ -81,7 +81,7 @@ Sync starts automatically on launch if Reminders access has been granted. The ap
 ### Microsoft To Do
 Click **Connect Microsoft To Do…** in the menu bar popover. A browser window opens for OAuth sign-in. After sign-in, a full initial sync runs and subsequent syncs are incremental (only tasks modified since the last run). Sync runs every 15 minutes in the background and whenever network connectivity is restored.
 
-To disconnect, sign out of your Microsoft account in the browser and restart the app.
+Once connected, the menu bar popover shows **Microsoft To Do: Connected** with a Sync Now and Disconnect option. To disconnect, click **Disconnect Microsoft To Do…** — this clears the stored credentials and stops syncing immediately.
 
 ## Permissions
 

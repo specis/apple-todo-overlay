@@ -1,5 +1,7 @@
 import AuthenticationServices
+import CryptoKit
 import Foundation
+import Security
 
 // MARK: - Provider
 
@@ -20,6 +22,9 @@ final class MicrosoftTodoProvider: TaskProvider {
 
     // Kept alive during the ASWebAuthenticationSession callback round-trip
     private var authSession: ASWebAuthenticationSession?
+    // PKCE and CSRF state, valid only during an in-progress sign-in
+    private var pendingVerifier: String?
+    private var pendingState: String?
 
     // MARK: - TaskProvider
 
@@ -150,13 +155,21 @@ final class MicrosoftTodoProvider: TaskProvider {
         msLog("redirectURI: \(Self.redirectURI)")
         msLog("redirectScheme: \(Self.redirectScheme)")
 
+        let verifier  = generateCodeVerifier()
+        let challenge = codeChallenge(for: verifier)
+        let state     = UUID().uuidString
+        pendingVerifier = verifier
+        pendingState    = state
+
         var comps = URLComponents(string: "\(Self.authBase)/authorize")!
         comps.queryItems = [
-            URLQueryItem(name: "client_id",     value: Self.clientId),
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "redirect_uri",  value: Self.redirectURI),
-            URLQueryItem(name: "scope",         value: Self.scopes),
-            URLQueryItem(name: "state",         value: UUID().uuidString),
+            URLQueryItem(name: "client_id",             value: Self.clientId),
+            URLQueryItem(name: "response_type",         value: "code"),
+            URLQueryItem(name: "redirect_uri",          value: Self.redirectURI),
+            URLQueryItem(name: "scope",                 value: Self.scopes),
+            URLQueryItem(name: "state",                 value: state),
+            URLQueryItem(name: "code_challenge",        value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
         guard let authURL = comps.url else {
             msLog("ERROR: failed to build auth URL")
@@ -193,18 +206,26 @@ final class MicrosoftTodoProvider: TaskProvider {
         }
 
         msLog("callbackURL: \(callbackURL)")
-        guard
-            let parts = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
-            let code  = parts.queryItems?.first(where: { $0.name == "code" })?.value
-        else {
-            let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems
-            msLog("ERROR: no code in callback. queryItems: \(items ?? [])")
+        let parts = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)
+        let returnedState = parts?.queryItems?.first(where: { $0.name == "state" })?.value
+        guard returnedState == pendingState else {
+            msLog("ERROR: state mismatch — possible CSRF. Expected \(pendingState ?? "nil"), got \(returnedState ?? "nil")")
+            pendingState = nil; pendingVerifier = nil
+            return false
+        }
+        guard let code = parts?.queryItems?.first(where: { $0.name == "code" })?.value else {
+            msLog("ERROR: no code in callback. queryItems: \(parts?.queryItems ?? [])")
+            pendingState = nil; pendingVerifier = nil
             return false
         }
         msLog("auth code received (length \(code.count))")
 
+        let verifierToUse = pendingVerifier ?? ""
+        pendingState = nil
+        pendingVerifier = nil
+
         do {
-            let token = try await exchangeCode(code)
+            let token = try await exchangeCode(code, verifier: verifierToUse)
             msLog("sign-in succeeded — access token length: \(token.count)")
             return true
         } catch {
@@ -231,13 +252,14 @@ final class MicrosoftTodoProvider: TaskProvider {
         throw MSTodoError.notAuthenticated
     }
 
-    private func exchangeCode(_ code: String) async throws -> String {
+    private func exchangeCode(_ code: String, verifier: String) async throws -> String {
         let body = formBody([
-            "client_id":    Self.clientId,
-            "grant_type":   "authorization_code",
-            "code":         code,
-            "redirect_uri": Self.redirectURI,
-            "scope":        Self.scopes,
+            "client_id":     Self.clientId,
+            "grant_type":    "authorization_code",
+            "code":          code,
+            "redirect_uri":  Self.redirectURI,
+            "scope":         Self.scopes,
+            "code_verifier": verifier,
         ])
         let response = try await tokenRequest(body: body)
         MSTokenStore.store(response)
@@ -264,8 +286,7 @@ final class MicrosoftTodoProvider: TaskProvider {
         msLog("token request → \(Self.authBase)/token")
         let (data, response) = try await URLSession.shared.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-        let raw = String(data: data, encoding: .utf8) ?? "<binary>"
-        msLog("token response [\(status)]: \(raw)")
+        msLog("token response [\(status)]: \(status == 200 ? "<redacted>" : (String(data: data, encoding: .utf8) ?? "<binary>"))")
         return try JSONDecoder().decode(MSTokenResponse.self, from: data)
     }
 
@@ -380,30 +401,73 @@ final class MicrosoftTodoProvider: TaskProvider {
     }()
 }
 
-// MARK: - Token store
+// MARK: - Token store (Keychain)
 
 private enum MSTokenStore {
-    private static let defaults = UserDefaults.standard
+    private static let service = "apple-todo-overlay.ms-todo"
+
     private enum Key {
-        static let access  = "ms.todo.accessToken"
-        static let refresh = "ms.todo.refreshToken"
-        static let expiry  = "ms.todo.tokenExpiry"
+        static let access  = "accessToken"
+        static let refresh = "refreshToken"
+        static let expiry  = "tokenExpiry"
     }
 
-    static var accessToken:  String? { defaults.string(forKey: Key.access) }
-    static var refreshToken: String? { defaults.string(forKey: Key.refresh) }
-    static var tokenExpiry:  Date?   { defaults.object(forKey: Key.expiry) as? Date }
+    static var accessToken:  String? { read(Key.access) }
+    static var refreshToken: String? { read(Key.refresh) }
+    static var tokenExpiry:  Date? {
+        guard let s = read(Key.expiry) else { return nil }
+        return ISO8601DateFormatter().date(from: s)
+    }
 
     static func store(_ response: MSTokenResponse) {
-        defaults.set(response.access_token, forKey: Key.access)
-        if let rt = response.refresh_token { defaults.set(rt, forKey: Key.refresh) }
-        defaults.set(Date().addingTimeInterval(TimeInterval(response.expires_in)), forKey: Key.expiry)
+        write(response.access_token, forKey: Key.access)
+        if let rt = response.refresh_token { write(rt, forKey: Key.refresh) }
+        let expiry = Date().addingTimeInterval(TimeInterval(response.expires_in))
+        write(ISO8601DateFormatter().string(from: expiry), forKey: Key.expiry)
     }
 
     static func clear() {
-        defaults.removeObject(forKey: Key.access)
-        defaults.removeObject(forKey: Key.refresh)
-        defaults.removeObject(forKey: Key.expiry)
+        delete(Key.access)
+        delete(Key.refresh)
+        delete(Key.expiry)
+    }
+
+    // MARK: Keychain primitives
+
+    private static func read(_ key: String) -> String? {
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: key,
+            kSecReturnData:  true,
+            kSecMatchLimit:  kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func write(_ value: String, forKey key: String) {
+        let data = Data(value.utf8)
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: key,
+        ]
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData: data] as CFDictionary)
+        if status == errSecItemNotFound {
+            SecItemAdd(query.merging([kSecValueData: data]) { $1 } as CFDictionary, nil)
+        }
+    }
+
+    private static func delete(_ key: String) {
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: key,
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }
 
@@ -484,6 +548,33 @@ private struct MSTokenResponse: Decodable {
     let access_token: String
     let refresh_token: String?
     let expires_in: Int
+}
+
+// MARK: - PKCE helpers
+
+private extension MicrosoftTodoProvider {
+    /// Generates a cryptographically random code_verifier (RFC 7636).
+    func generateCodeVerifier() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes).base64URLEncoded
+    }
+
+    /// Returns BASE64URL(SHA256(verifier)) as the code_challenge.
+    func codeChallenge(for verifier: String) -> String {
+        let digest = SHA256.hash(data: Data(verifier.utf8))
+        return Data(digest).base64URLEncoded
+    }
+}
+
+private extension Data {
+    /// Base64URL encoding without padding (RFC 4648 §5).
+    var base64URLEncoded: String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
 }
 
 // MARK: - Priority ↔ MS importance

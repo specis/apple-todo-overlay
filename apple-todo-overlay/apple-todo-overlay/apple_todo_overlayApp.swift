@@ -38,29 +38,36 @@ struct apple_todo_overlayApp: App {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
             Divider()
-            Button("Connect Microsoft To Do…") {
-                Task {
-                    let ok = await AppDelegate.msTodoProvider.signIn()
-                    if ok {
-                        // Reset stored sync timestamp so the next cycle fetches all tasks,
-                        // not just those modified since the last (possibly failed) attempt.
-                        try? SyncStateStore.updateLastSync(for: .microsoftTodo, date: .distantPast)
-                        SyncManager.shared.register(AppDelegate.msTodoProvider, for: .microsoftTodo)
-                        SyncManager.shared.triggerSync()
-                    }
-                    await MainActor.run {
-                        let alert = NSAlert()
-                        alert.messageText = ok ? "Connected" : "Sign-in failed"
-                        alert.informativeText = ok
-                            ? "Microsoft To Do is connected. Syncing now."
-                            : "Could not complete sign-in. Check the console log (make run) for details."
-                        alert.alertStyle = ok ? .informational : .warning
-                        alert.runModal()
+            if AppDelegate.msTodoProvider.isAvailable() {
+                Label("Microsoft To Do: Connected", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Button("Sync Now") {
+                    SyncManager.shared.triggerSync()
+                }
+                Button("Disconnect Microsoft To Do…") {
+                    AppDelegate.msTodoProvider.signOut()
+                    SyncManager.shared.stop()
+                    SyncManager.shared.start()
+                }
+            } else {
+                Button("Connect Microsoft To Do…") {
+                    Task {
+                        let ok = await AppDelegate.msTodoProvider.signIn()
+                        if ok {
+                            try? SyncStateStore.updateLastSync(for: .microsoftTodo, date: .distantPast)
+                            SyncManager.shared.register(AppDelegate.msTodoProvider, for: .microsoftTodo)
+                            SyncManager.shared.triggerSync()
+                        } else {
+                            await MainActor.run {
+                                let alert = NSAlert()
+                                alert.messageText = "Sign-in failed"
+                                alert.informativeText = "Could not complete sign-in. Check the console log (make run) for details."
+                                alert.alertStyle = .warning
+                                alert.runModal()
+                            }
+                        }
                     }
                 }
-            }
-            Button("Sync Now") {
-                SyncManager.shared.triggerSync()
             }
             Divider()
             Button("Quit") { NSApplication.shared.terminate(nil) }
