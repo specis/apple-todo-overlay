@@ -72,6 +72,8 @@ final class CloudKitProvider: TaskProvider {
         return tasks
     }
 
+    func deleteRemote(_ tasks: [TodoTask]) async throws {}
+
     func pushChanges(_ tasks: [TodoTask]) async throws {
         guard !tasks.isEmpty else { return }
         try await ensureZoneExists()

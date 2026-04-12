@@ -22,6 +22,23 @@ final class TaskRepository {
         }
     }
 
+    /// Returns soft-deleted tasks for a given source that still have a remote externalId
+    /// and therefore need to be deleted on the remote provider.
+    func getDeletedTasks(for source: TaskSource) throws -> [TodoTask] {
+        let rows = try db.query("""
+            SELECT * FROM tasks
+            WHERE is_deleted = 1 AND source = ? AND external_id IS NOT NULL;
+        """, params: [source.rawValue])
+        return rows.compactMap { row in
+            guard let id = row["id"]?.textValue else { return nil }
+            return TaskMapper.toTask(row: row, tags: [])
+        }
+    }
+
+    func hardDeleteTask(id: String) throws {
+        try db.run("DELETE FROM tasks WHERE id = ?;", params: [id])
+    }
+
     // MARK: - Write
 
     func saveTask(_ task: TodoTask) throws {

@@ -7,9 +7,8 @@ struct apple_todo_overlayApp: App {
     @AppStorage("hudOpacity") private var hudOpacity: Double = 1.0
 
     var body: some Scene {
-        MenuBarExtra("Tasks", systemImage: "checklist",
-                     isInserted: Binding(
-                        get: { HUDController.shared.isVisible },
+        MenuBarExtra(isInserted: Binding(
+                        get: { HUDController.shared.isVisible || HUDController.shared.urgentCount > 0 },
                         set: { _ in }
                      )) {
             Button("Show HUD") { HUDController.shared.show() }
@@ -65,6 +64,20 @@ struct apple_todo_overlayApp: App {
             }
             Divider()
             Button("Quit") { NSApplication.shared.terminate(nil) }
+        } label: {
+            let count = HUDController.shared.urgentCount
+            HStack(spacing: 2) {
+                Image(systemName: "checklist")
+                if count > 0 {
+                    Text("\(min(count, 99))")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 1)
+                        .background(Color.red, in: Capsule())
+                }
+            }
+            .accessibilityLabel(count > 0 ? "\(count) urgent tasks" : "Tasks")
         }
     }
 }

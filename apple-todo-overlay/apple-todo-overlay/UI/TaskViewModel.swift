@@ -22,6 +22,13 @@ final class TaskViewModel {
         return FilterService.applyTagFilter(activeTagFilter?.id, to: byList)
     }
 
+    /// Number of incomplete tasks that are overdue or due today — used for the menu bar badge.
+    var urgentCount: Int {
+        let overdue  = FilterService.apply(.overdue,   to: tasks).count
+        let dueToday = FilterService.apply(.dueToday,  to: tasks).count
+        return overdue + dueToday
+    }
+
     var availableTags: [Tag] {
         var seen = Set<String>()
         return tasks.flatMap { $0.tags }.filter { seen.insert($0.id).inserted }

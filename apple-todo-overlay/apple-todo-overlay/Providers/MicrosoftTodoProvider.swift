@@ -72,6 +72,15 @@ final class MicrosoftTodoProvider: TaskProvider {
         return tasks
     }
 
+    func deleteRemote(_ tasks: [TodoTask]) async throws {
+        let token = try await validToken()
+        for task in tasks {
+            guard let extId = task.externalId, let listId = task.listId else { continue }
+            msLog("delete remote task '\(task.title)' extId=\(extId)")
+            try await delete("/lists/\(listId)/tasks/\(extId)", token: token)
+        }
+    }
+
     func pushChanges(_ tasks: [TodoTask]) async throws {
         let token = try await validToken()
 
@@ -289,6 +298,17 @@ final class MicrosoftTodoProvider: TaskProvider {
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
         if status < 200 || status >= 300 {
             msLog("PATCH \(path) failed with status \(status)")
+        }
+    }
+
+    private func delete(_ path: String, token: String) async throws {
+        var req = URLRequest(url: URL(string: Self.graphBase + path)!)
+        req.httpMethod = "DELETE"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.data(for: req)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if status < 200 || status >= 300 {
+            msLog("DELETE \(path) failed with status \(status)")
         }
     }
 

@@ -52,6 +52,10 @@ final class AppleRemindersProvider: TaskProvider {
         return (recent + comp).compactMap { map($0) }
     }
 
+    func deleteRemote(_ tasks: [TodoTask]) async throws {
+        // Deletions are not propagated back to Apple Reminders
+    }
+
     func pushChanges(_ tasks: [TodoTask]) async throws {
         guard isAvailable() else { return }
 

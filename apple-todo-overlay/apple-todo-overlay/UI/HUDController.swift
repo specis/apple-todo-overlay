@@ -11,6 +11,8 @@ final class HUDController {
     private(set) var isVisible = false
     private(set) var accessibilityGranted = false
 
+    var urgentCount: Int { viewModel.urgentCount }
+
     private var panel: OverlayPanel?
     private var globalMonitor: Any?
     private var localMonitor: Any?

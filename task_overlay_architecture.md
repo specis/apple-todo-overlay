@@ -518,16 +518,16 @@ The sync engine can upload the change later.
 | ← → keyboard navigation for filter bar | ✅ Done |
 | Accessibility permission prompt on launch | ✅ Done |
 | Release build + package make targets | ✅ Done |
+| Search (title + notes, across all tasks) | ✅ Done |
+| Delete propagation to MS Todo | ✅ Done |
+| Menu bar badge (overdue + due-today count) | ✅ Done |
 
 ---
 
 ## 9. Roadmap
 
 ### High priority
-- **Search** — find a task by name; increasingly important as task count grows
-- **Delete propagation** — locally deleted tasks should be deleted in MS Todo (currently `is_deleted` in local DB only)
 - **Due date notifications** — alert when a task becomes overdue
-- **Overdue badge** — show count on menu bar icon
 
 ### Medium priority
 - **Close button on HUD** — discoverable alternative to the hotkey

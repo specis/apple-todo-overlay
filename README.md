@@ -11,9 +11,13 @@ A macOS floating HUD for managing tasks. Lives in the menu bar, floats above all
 - Priority levels (High, Medium, Low) with colour-coded indicators
 - Inline task editing — click any row to edit title, due date, priority, and tags
 - Local-first SQLite database — works fully offline
-- Sync with Apple Reminders and Microsoft To Do (background sync every 15 minutes, incremental)
+- Bidirectional sync with Apple Reminders and Microsoft To Do (background sync every 15 minutes, incremental)
+- Delete propagation — tasks deleted locally are removed from Microsoft To Do on next sync
+- Search tasks by title or notes
+- Menu bar badge showing overdue + due-today count — icon appears automatically when tasks need attention
+- ← → arrow keys to navigate filter pills
 - Configurable HUD opacity via menu bar slider
-- Menu bar icon only visible when the HUD is open
+- Menu bar icon hidden when idle, visible when HUD is open or tasks are urgent
 
 > **Status:** Active development. Core task UI, local database, quick-add, tags, inline editing, Apple Reminders sync, and Microsoft To Do sync are all working.
 
@@ -60,11 +64,14 @@ Click any task row (excluding the checkbox) to expand the inline editor:
 - Toggle tags on/off from all tags in the system
 - **Save** or press Return to confirm · **Cancel** or Escape to discard · **Delete** to remove
 
-## Filtering
+## Filtering and search
 
 - Use the **smart list pills** at the top to filter by time (Today, This Week, Overdue, etc.)
-- If any tasks have tags, a **tag filter strip** appears below — tap a tag chip to narrow the list further
+- Press **← →** arrow keys to cycle through filter pills
+- If any tasks have tags, a **tag filter strip** appears below — click a tag chip to narrow the list further
 - Switching smart list clears the active tag filter
+- Press the **magnifying glass** icon (or click it) to open search — searches title and notes across all tasks
+- Press **Escape** to close search
 
 ## Sync
 
@@ -97,10 +104,10 @@ apple-todo-overlay/
 ## Roadmap
 
 ### High priority
-- [ ] Search — find tasks by name
-- [ ] Delete propagation — locally deleted tasks should be deleted in MS Todo
+- [x] Search — find tasks by title or notes
+- [x] Delete propagation — locally deleted tasks removed from MS Todo on next sync
+- [x] Overdue / today badge on menu bar icon
 - [ ] Due date notifications — alert when a task becomes overdue
-- [ ] Overdue / today badge count on menu bar icon
 
 ### Medium priority
 - [ ] Close button on the HUD

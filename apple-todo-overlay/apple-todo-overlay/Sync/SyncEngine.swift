@@ -91,7 +91,16 @@ final class SyncEngine {
             }
         }
 
-        // 4. Record sync timestamp
+        // 4. Push deletions — remote-delete soft-deleted tasks then hard-purge locally
+        let deleted = (try? repo.getDeletedTasks(for: source)) ?? []
+        if !deleted.isEmpty {
+            try await provider.deleteRemote(deleted)
+            for task in deleted {
+                try repo.hardDeleteTask(id: task.id)
+            }
+        }
+
+        // 5. Record sync timestamp
         try SyncStateStore.updateLastSync(for: source, date: Date())
 
         return SyncResult(source: source, fetched: fetched, pushed: pending.count, conflicts: conflicts)

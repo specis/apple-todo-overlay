@@ -139,14 +139,22 @@ struct HUDContentView: View {
     // MARK: - Smart list filter bar
 
     private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(SmartList.allCases) { list in
-                    filterPill(list)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(SmartList.allCases) { list in
+                        filterPill(list)
+                            .id(list)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+            }
+            .onChange(of: viewModel.activeFilter) { _, newFilter in
+                withAnimation(.spring(duration: 0.2)) {
+                    proxy.scrollTo(newFilter, anchor: .center)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
         }
     }
 
