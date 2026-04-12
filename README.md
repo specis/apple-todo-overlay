@@ -40,6 +40,7 @@ The app runs as a menu bar agent (no Dock icon). On first launch it appears in t
 ```bash
 make release    # production build
 make package    # builds + zips apple-todo-overlay.zip
+make dmg        # builds + creates apple-todo-overlay.dmg (drag-to-install)
 ```
 
 ## Quick-add
