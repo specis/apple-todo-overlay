@@ -489,33 +489,54 @@ The sync engine can upload the change later.
 
 ---
 
-## 8. MVP Recommendation
+## 8. MVP Status
 
-A sensible MVP would be:
+| # | Feature | Status |
+|---|---|---|
+| 1 | Local SQLite database | ✅ Done |
+| 2 | HUD / overlay UI | ✅ Done |
+| 3 | Filters: Today, This Week, Overdue | ✅ Done |
+| 4 | Mark complete / incomplete | ✅ Done |
+| 5 | Background sync engine | ✅ Done |
+| 6 | Apple Reminders integration | ✅ Done |
+| 7 | CloudKit integration | ⏸ Blocked — requires paid Apple Developer account |
+| 8 | Microsoft To Do integration (bidirectional) | ✅ Done |
 
-1. Local SQLite database
-2. HUD / overlay UI
-3. Filters for:
-   - Today
-   - This Week
-   - Overdue
-4. Mark complete / incomplete
-5. Background sync engine skeleton
-6. Apple Reminders integration first
-7. CloudKit second
-8. Microsoft To Do after core sync is stable
+### Also completed beyond original MVP
+
+| Feature | Status |
+|---|---|
+| Smart list filters (Tomorrow, Next Week, No Due Date, Recently Completed) | ✅ Done |
+| Quick-add with natural language parsing | ✅ Done |
+| Tags with auto-assigned colours + tag filter strip | ✅ Done |
+| Priority levels (High/Medium/Low) | ✅ Done |
+| Inline task editing | ✅ Done |
+| Configurable HUD opacity | ✅ Done |
+| ⌃⌥Space global hotkey | ✅ Done |
+| Menu bar icon shows/hides with HUD | ✅ Done |
+| App icon | ✅ Done |
+| ← → keyboard navigation for filter bar | ✅ Done |
+| Accessibility permission prompt on launch | ✅ Done |
+| Release build + package make targets | ✅ Done |
 
 ---
 
-## 9. Future Extensions
+## 9. Roadmap
 
-Potential future additions:
+### High priority
+- **Search** — find a task by name; increasingly important as task count grows
+- **Delete propagation** — locally deleted tasks should be deleted in MS Todo (currently `is_deleted` in local DB only)
+- **Due date notifications** — alert when a task becomes overdue
+- **Overdue badge** — show count on menu bar icon
 
-- subtasks
-- tags
-- recurring tasks
-- natural language date parsing
-- own backend sync
-- macOS menu bar mode
+### Medium priority
+- **Close button on HUD** — discoverable alternative to the hotkey
+- **Task grouping by list** — group tasks by their source list in the All view
+- **Window position persistence** — remember HUD position across relaunches
+- **Recurring task awareness** — detect recurring tasks from MS Todo; don't mark the series complete
+
+### Future / nice to have
+- Subtasks
+- Own backend sync / CloudKit (requires paid Developer account)
 - iPhone / iPad companion app
-- user analytics / sync diagnostics panel
+- Sync diagnostics panel

@@ -94,8 +94,25 @@ apple-todo-overlay/
 └── System/             Network monitor, background scheduler
 ```
 
+## Roadmap
+
+### High priority
+- [ ] Search — find tasks by name
+- [ ] Delete propagation — locally deleted tasks should be deleted in MS Todo
+- [ ] Due date notifications — alert when a task becomes overdue
+- [ ] Overdue / today badge count on menu bar icon
+
+### Medium priority
+- [ ] Close button on the HUD
+- [ ] Task grouping by list in the All view
+- [ ] Window position persistence across relaunches
+- [ ] Recurring task awareness (don't mark MS Todo series complete)
+
+### Blocked
+- [ ] CloudKit sync — requires paid Apple Developer account
+
 ## Architecture
 
-See [`task_overlay_architecture.md`](task_overlay_architecture.md) for the base architecture (domain model, ERD, sync sequence diagram, SQLite schema).
+See [`task_overlay_architecture.md`](task_overlay_architecture.md) for the base architecture, MVP status, and full roadmap.
 
 See [`task_overlay_architecture_extensions.md`](task_overlay_architecture_extensions.md) for the extended design covering smart lists, tags, priority, and task creation/editing.
