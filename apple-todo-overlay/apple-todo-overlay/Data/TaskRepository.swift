@@ -94,8 +94,8 @@ final class TaskRepository {
         try db.run("""
             UPDATE tasks SET
                 list_id = ?, title = ?, notes = ?, due_date = ?,
-                completed = ?, completed_at = ?, last_modified = ?,
-                sync_status = ?, priority = ?
+                completed = ?, completed_at = ?, source = ?, external_id = ?,
+                last_modified = ?, sync_status = ?, priority = ?
             WHERE id = ?;
         """, params: [
             task.listId,
@@ -104,11 +104,24 @@ final class TaskRepository {
             task.dueDate,
             task.completed,
             task.completedAt,
+            task.source.rawValue,
+            task.externalId,
             task.lastModified,
             task.syncStatus.rawValue,
             task.priority.rawValue,
             task.id
         ])
+    }
+
+    /// Marks a batch of tasks as synced without touching any other field.
+    /// Used after a push to avoid clobbering externalId/source written during the push.
+    func markSynced(ids: [String]) throws {
+        guard !ids.isEmpty else { return }
+        let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
+        try db.run(
+            "UPDATE tasks SET sync_status = 'SYNCED' WHERE id IN (\(placeholders));",
+            params: ids.map { $0 as Any? }
+        )
     }
 
     func markCompleted(id: String, completed: Bool) throws {

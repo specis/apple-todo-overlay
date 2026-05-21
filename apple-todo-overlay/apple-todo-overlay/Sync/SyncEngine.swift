@@ -81,27 +81,11 @@ final class SyncEngine {
         }
         if !pending.isEmpty {
             try await provider.pushChanges(pending)
+            // Mark synced without reconstructing stale snapshots — pushChanges may have
+            // written externalId/source for newly-created tasks and we must not clobber them.
             try db.beginTransaction()
             do {
-                for task in pending {
-                    let synced = TodoTask(
-                        id:           task.id,
-                        title:        task.title,
-                        notes:        task.notes,
-                        dueDate:      task.dueDate,
-                        completed:    task.completed,
-                        completedAt:  task.completedAt,
-                        source:       task.source,
-                        externalId:   task.externalId,
-                        createdAt:    task.createdAt,
-                        lastModified: task.lastModified,
-                        syncStatus:   .synced,
-                        listId:       task.listId,
-                        priority:     task.priority,
-                        tags:         task.tags
-                    )
-                    try repo.updateTask(synced)
-                }
+                try repo.markSynced(ids: pending.map(\.id))
                 try db.commitTransaction()
             } catch {
                 db.rollbackTransaction()
