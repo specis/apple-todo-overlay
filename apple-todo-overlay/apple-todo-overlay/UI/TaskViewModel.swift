@@ -44,14 +44,14 @@ final class TaskViewModel {
                 to: FilterService.apply(activeFilter, to: tasks)
             )
         }
-        filteredTasks = filtered
+        filteredTasks = filtered.sorted { $0.priority.sortOrder < $1.priority.sortOrder }
 
         // groupedFilteredTasks (only meaningful for the All view)
         let listIndex = Dictionary(uniqueKeysWithValues: lists.map { ($0.id, $0.name) })
         var groups: [(name: String, tasks: [TodoTask])] = []
         var seen: [String: Int] = [:]
         var local: [TodoTask] = []
-        for task in filtered {
+        for task in filteredTasks {
             if let listId = task.listId, let name = listIndex[listId] {
                 if let i = seen[name] { groups[i].tasks.append(task) }
                 else { seen[name] = groups.count; groups.append((name: name, tasks: [task])) }
